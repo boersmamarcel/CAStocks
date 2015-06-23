@@ -1,3 +1,5 @@
+# source: http://dragly.org/2013/03/25/working-with-percolation-clusters-in-python/
+
 from scipy.ndimage import measurements
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,7 +9,7 @@ plt.close('all')
 L = 100 # array size (square)
 r = np.random.random((L,L)) # get random
 
-# what is this?
+# necessary for example
 p = 0.4 # threshhold for being deemed 'active'
 z = r < p # matrix of true/false values
  
