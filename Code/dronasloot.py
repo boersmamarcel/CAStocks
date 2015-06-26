@@ -3,7 +3,7 @@
 # ? %% difference between "transaction quantity" q^{t+1}_i,im/fu and V^{t+1}_i,im
 # done %% phi^t_fu/im is the same for all fundamentalists (i.e. gaussian random)
 import numpy as np
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 # from scipy.ndimage import measurements
 
@@ -199,8 +199,8 @@ F = 100 # Fundamental price
 c_im = 0.7 # imitators constant
 c_fu = 0.2 # fundamentalists constant
 c_p = 0.005 # constant for price updating sensitity
-Nx = 10 # width
-Ny = 10 # height
+Nx = 512 # width
+Ny = 128 # height
 k = 400 # k value
 c_l = 20 # c_l
 L_m = 0.01
@@ -213,8 +213,8 @@ for i in range(0,steps):
 print model.getPrice()
 
 
-# plt.plot(model.getPrice())
-# plt.xlabel('time in steps of 1 [-]')
-# plt.ylabel('Price [-]')
-# plt.show()
+plt.plot(model.getPrice())
+plt.xlabel('time in steps of 1 [-]')
+plt.ylabel('Price [-]')
+plt.show()
 

@@ -215,12 +215,27 @@ for i in range(steps):
     LogReturns = np.append(LogReturns, np.log(prices[i]) - np.log(prices[i-1]) )
     nLogReturns = np.append(nLogReturns, (LogReturns[i] - np.mean(LogReturns))/np.std(LogReturns) )
     
-    
+    if i % int(steps/nView) == 0: # show progress nView times
+        # declare variables
+        N = 10 # size
+        skip = 10
+        saveVideo = False
+        A = model.getGrid()
 
+        cmap = mpl.colors.ListedColormap(['red','white','green'])
+        bounds=[-1.1,-.1,.1,1.1]
+        norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+        im = plt.imshow(A,interpolation='nearest',
+                            cmap = cmap,norm=norm)
+
+        plt.show()
         
 plt.figure()
 plt.plot(prices)
 plt.show()
+
+
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
