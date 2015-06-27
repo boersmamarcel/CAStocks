@@ -1,32 +1,65 @@
-from timeit import default_timer as timer
-import math
+from numbapro import cuda
+from numba import *
 import numpy as np
-import pylab
-from numbapro import cuda, cudadrv
-# For machine with multiple devices
-cuda.select_device(0)
+import math
+from timeit import default_timer as time
 
-@cuda.jit(argtypes=['float32[:,:]','float32[:,:]'])
-def test(mat, nn):
-	tx = cuda.threadIdx.x
-	ty = cuda.threadIdx.y
-	bx = cuda.blockIdx.x
-	by = cuda.blockIdx.y
-	bw = cuda.blockDim.x
-	bh = cuda.blockDim.y
+bpg = 50
+tpb = 32
+n = bpg * tpb
 
-	x = tx + bx * bw
-	y = ty + by * bh
+@cuda.jit(argtypes=[f4[:,:], f4[:,:], f4[:,:]])
+def cu_square_matrix_mul(A, B, C):
+    tx = cuda.threadIdx.x
+    ty = cuda.threadIdx.y
+    bx = cuda.blockIdx.x
+    by = cuda.blockIdx.y
+    bw = cuda.blockDim.x
+    bh = cuda.blockDim.y
 
-	nn[x,y] = mat[x,y] +1
+    x = tx + bx * bw
+    y = ty + by * bh
+
+    if x >= n or y >= n:
+        return
+
+    C[y, x] = 0
+    for i in range(n):
+        C[y, x] += A[y, i] * B[i, x]
 
 
 
-w = 100
-h = 100
-b = np.zeros((w,h),dtype=np.float32)
-c = np.zeros((w,h),dtype=np.float32)
+A = np.array(np.random.random((n, n)), dtype=np.float32)
+B = np.array(np.random.random((n, n)), dtype=np.float32)
+C = np.empty_like(A)
 
-print b
-test(b,c)
-print c
+print "N = %d x %d" % (n, n)
+
+s = time()
+stream = cuda.stream()
+with stream.auto_synchronize():
+    dA = cuda.to_device(A, stream)
+    dB = cuda.to_device(B, stream)
+    dC = cuda.to_device(C, stream)
+    cu_square_matrix_mul[(bpg, bpg), (tpb, tpb), stream](dA, dB, dC)
+    dC.to_host(stream)
+
+e = time()
+tcuda = e - s
+
+print C
+# Host compute
+Amat = np.matrix(A)
+Bmat = np.matrix(B)
+
+s = time()
+Cans = Amat * Bmat
+e = time()
+tcpu = e - s
+
+# Check result
+assert np.allclose(C, Cans)
+
+print 'cpu:  %f' % tcpu
+print 'cuda: %f' % tcuda
+print 'cuda speedup: %.2fx' % (tcpu / tcuda)
