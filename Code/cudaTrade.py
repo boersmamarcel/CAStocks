@@ -68,7 +68,7 @@ def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd
 	width, height = grid.shape
 
 	if cellState == 0:
-		enter = activateP[x*width + y]
+		enter = enterP[x*width + y]
 
 		#activation probability
 		if enter < 0.5: 
