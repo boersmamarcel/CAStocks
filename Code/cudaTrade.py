@@ -20,7 +20,7 @@ h = 30
 initProb = 0.01
 
 #generate random traders
-A = np.array(np.random.choice([0, 1,-1], p=[1-initProb, initProb/2, initProb/2], size=w*h, replace=True).reshape(h,w), dtype=np.int32)
+A = np.array(np.random.choice([0, 1], p=[1-initProb, initProb], size=w*h, replace=True).reshape(h,w), dtype=np.int32)
 B = np.empty_like(A)
 
 def calcCluster(grid):
@@ -61,8 +61,8 @@ def localIRule(k, clusterSize, nClustOnes, xi, eta):
 def localPRule(k, clusterSize, nClustOnes, xi, eta):
 	return 1./(1+math.exp(-2*localIRule(k, clusterSize, nClustOnes, xi, eta)))
 
-@cuda.jit(restype = int32, argtypes=[int32[:,:], int32[:,:],f4[:], int32, f4[:], int32, int32, int32, f4, f4, f4, f4, f4, f4, f4, f4, f8[:], f8[:], f8[:], f8[:], f8[:]], device=True)
-def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd, ph, price,  A, a, h, beta, enterP, activateP, choiceP, diffuseP, xis):
+@cuda.jit(restype = int32, argtypes=[int32[:,:], int32[:,:],f4[:], int32, f4[:], int32, int32, int32, f4, f4, f4, f4, f4, f4, f8[:], f8[:], f8[:], f8[:], f8[:]], device=True)
+def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd, ph,  A, a, h, enterP, activateP, choiceP, diffuseP, xis):
 	cellState = grid[x,y]
 
 	width, height = grid.shape
@@ -112,8 +112,6 @@ def stateUpdate(currentGrid, nextGrid, cluster, clusterSize, nClust, clusterOnes
 	gw,gh = currentGrid.shape
 
 	#settings
-	price = 100
-
 	pe = 0.0001
 	pd = 0.05
 	ph = 0.0485/1.5
@@ -121,24 +119,42 @@ def stateUpdate(currentGrid, nextGrid, cluster, clusterSize, nClust, clusterOnes
 	A = 1.8
 	a = 2*A
 	h = 0
-	beta = 0.000001
 
 
 	if x < gw and y < gh: 
-		nextGrid[x,y] = cellUpdate(currentGrid, cluster, clusterSize, nClust, clusterOnes, x, y, i, pe, pd, ph, price,  A, a, h, beta, enterP, activateP, choiceP, diffuseP, xis)
+		nextGrid[x,y] = cellUpdate(currentGrid, cluster, clusterSize, nClust, clusterOnes, x, y, i, pe, pd, ph,  A, a, h, enterP, activateP, choiceP, diffuseP, xis)
 
+def updatePrice(price, clusterSize, nClustOnes):
+    # what is beta?????
+    x = 0.0000001
+            
+    # matrix form of summation
+    vals = np.sum( np.multiply(clusterSize, nClustOnes-(clusterSize-nClustOnes) ) )
+
+            
+    x *= vals
+    price += price*x # update price
+    
+    if price < 0:
+        price = 0 # lower bound
+
+    return price
 
 #upload memory to gpu
 bpg = 50
 tpb = 32
 
 nView = 5
-steps = 500
+steps = 1500
+
+price = 100
 
 stream = cuda.stream() #initialize memory stream
 
 # instantiate a cuRAND PRNG
 prng = curand.PRNG(curand.PRNG.MRG32K3A, stream=stream)
+
+prices = np.array([])
 
 for i in range(steps):
 
@@ -173,6 +189,14 @@ for i in range(steps):
 		#get GPU memory results
 		dB.to_host(stream)
 
+
+	#set new grid as current grid and repeat
+	A = B.copy()
+
+	price = updatePrice(price, clusterSize, nClustOnes)
+
+	prices = np.append(prices, [price])
+
 	if i % int(steps/nView) == 0:
 		cmap = mpl.colors.ListedColormap(['red','white','green'])
 		bounds=[-1.1,-.1,.1,1.1]
@@ -181,11 +205,10 @@ for i in range(steps):
 		im = plt.imshow(B.astype(int),interpolation='nearest',
 		                    cmap = cmap,norm=norm)
 
-		# plt.show()
+		plt.show()
 
-
-	#set new grid as current grid and repeat
-	A = B.copy()
-
+plt.figure()
+plt.plot(prices)
+plt.show()
 
 print np.matrix(B).max()
