@@ -71,7 +71,7 @@ def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd
 		enter = enterP[x*width + y]
 
 		#activation probability
-		if enter < 0.5: 
+		if enter < pe: 
 			cellState = 1 if choiceP[x*width + y] < 0.5 else -1
 		else:
 			#activate by neighbors
