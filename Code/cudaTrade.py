@@ -17,7 +17,7 @@ cuda.select_device(0) #select videocard
 w = 120
 h = 30
 
-initProb = 0.01
+initProb = 0.05
 
 #generate random traders
 A = np.array(np.random.choice([0, 1], p=[1-initProb, initProb], size=w*h, replace=True).reshape(h,w), dtype=np.int32)
