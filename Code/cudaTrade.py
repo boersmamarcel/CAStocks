@@ -126,7 +126,7 @@ def stateUpdate(currentGrid, nextGrid, cluster, clusterSize, nClust, clusterOnes
 
 def updatePrice(price, clusterSize, nClustOnes):
     # what is beta?????
-    x = 0.0000001
+    x = 0.000001
             
     # matrix form of summation
     vals = np.sum( np.multiply(clusterSize, nClustOnes-(clusterSize-nClustOnes) ) )
@@ -145,70 +145,81 @@ bpg = 50
 tpb = 32
 
 nView = 5
-steps = 1500
+steps = 500
 
-price = 100
+initialPrice = 500
 
 stream = cuda.stream() #initialize memory stream
 
 # instantiate a cuRAND PRNG
 prng = curand.PRNG(curand.PRNG.MRG32K3A, stream=stream)
 
-prices = np.array([])
+paths = 10
 
-for i in range(steps):
+pricePath = []
 
-	# Allocate device side array
-	enterProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
-	activateProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
-	choiceProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
-	diffuseProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
+for j in range(paths):
+	print "Generating path: %s" % j
+	prices = [initialPrice]
+	price = initialPrice
 
-	#calculate cluster info
-	cluster, clusterSize, nClust, nClustOnes = calcCluster(A) # get cluster info
+	for i in range(steps):
 
-	xis 		= cuda.device_array(nClust, dtype=np.double, stream = stream)
+		# Allocate device side array
+		enterProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
+		activateProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
+		choiceProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
+		diffuseProbs = cuda.device_array(w*h, dtype=np.double, stream=stream)
 
+		#calculate cluster info
+		cluster, clusterSize, nClust, nClustOnes = calcCluster(A) # get cluster info
 
-	with stream.auto_synchronize():
-		dA = cuda.to_device(A, stream) #upldate grid
-		dB = cuda.to_device(B, stream) #upload new locatoin
-		dCluster = cuda.to_device(cluster, stream) #upload cluster grid to GPU
-		dClusterSize = cuda.to_device(clusterSize, stream) #upload cluster size
-		dnClustOnes  = cuda.to_device(nClustOnes, stream) #upload ones per cluster
-		dxis 		= cuda.to_device(xis, stream)
-
-		prng.uniform(enterProbs) #generate first random number
-		prng.uniform(activateProbs) #generate second random number
-		prng.uniform(choiceProbs) #generate second random number
-		prng.uniform(diffuseProbs) #generate second random number
-		prng.uniform(dxis)
-
-		stateUpdate[(bpg, bpg), (tpb, tpb), stream](dA, dB, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, dxis)
-
-		#get GPU memory results
-		dB.to_host(stream)
+		xis 		= cuda.device_array(nClust, dtype=np.double, stream = stream)
 
 
-	#set new grid as current grid and repeat
-	A = B.copy()
+		with stream.auto_synchronize():
+			dA = cuda.to_device(A, stream) #upldate grid
+			dB = cuda.to_device(B, stream) #upload new locatoin
+			dCluster = cuda.to_device(cluster, stream) #upload cluster grid to GPU
+			dClusterSize = cuda.to_device(clusterSize, stream) #upload cluster size
+			dnClustOnes  = cuda.to_device(nClustOnes, stream) #upload ones per cluster
+			dxis 		= cuda.to_device(xis, stream)
 
-	price = updatePrice(price, clusterSize, nClustOnes)
+			prng.uniform(enterProbs) #generate first random number
+			prng.uniform(activateProbs) #generate second random number
+			prng.uniform(choiceProbs) #generate second random number
+			prng.uniform(diffuseProbs) #generate second random number
+			prng.uniform(dxis)
 
-	prices = np.append(prices, [price])
+			stateUpdate[(bpg, bpg), (tpb, tpb), stream](dA, dB, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, dxis)
 
-	if i % int(steps/nView) == 0:
-		cmap = mpl.colors.ListedColormap(['red','white','green'])
-		bounds=[-1.1,-.1,.1,1.1]
-		norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+			#get GPU memory results
+			dB.to_host(stream)
 
-		im = plt.imshow(B.astype(int),interpolation='nearest',
-		                    cmap = cmap,norm=norm)
 
-		plt.show()
+		#set new grid as current grid and repeat
+		A = B.copy()
+
+		price = updatePrice(price, clusterSize, nClustOnes)
+
+		prices.append(price)
+
+		# if i % int(steps/nView) == 0:
+		# 	cmap = mpl.colors.ListedColormap(['red','white','green'])
+		# 	bounds=[-1.1,-.1,.1,1.1]
+		# 	norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+		# 	im = plt.imshow(B.astype(int),interpolation='nearest',
+		# 	                    cmap = cmap,norm=norm)
+
+		# 	plt.show()
+
+	pricePath.append(prices)
+
 
 plt.figure()
-plt.plot(prices)
+for j in range(len(pricePath)):
+	plt.plot(pricePath[j])
 plt.show()
 
 print np.matrix(B).max()
