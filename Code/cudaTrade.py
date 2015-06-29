@@ -38,7 +38,7 @@ def calcCluster(grid):
 
     return lw, area, num, cluster_ones
 
-@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8], device=True)
+@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8[:]], device=True)
 def localIRule(k, clusterSize, nClustOnes, xi, eta):
     # normalization constant
     I = 1./clusterSize[k-1]
@@ -47,23 +47,21 @@ def localIRule(k, clusterSize, nClustOnes, xi, eta):
     A = 1.8
     a = 2*A
 
-
     c = 0.0
-    anA = A*xi[k-1] + a*eta
     for i in range(int(nClustOnes[k-1])): # positive spins
-        c += anA*1
+        c += (A*(xi[k-1]*2-1) + a*eta[0])*1 # how to index eta??
     for i in range(int(clusterSize[k-1] - nClustOnes[k-1])): # negative spins
-        c += anA*-1
+        c += (A*(xi[k-1]*2-1) + a*eta[0])*-1 # how to index eta??
         
     return I*c #+ self.calch() 
 
 
-@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8], device=True)
+@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8[:]], device=True)
 def localPRule(k, clusterSize, nClustOnes, xi, eta):
 	return 1./(1+math.exp(-2*localIRule(k, clusterSize, nClustOnes, xi, eta)))
 
-@cuda.jit(restype = int32, argtypes=[int32[:,:], int32[:,:],f4[:], int32, f4[:], int32, int32, int32, f4, f4, f4, f4, f4, f4, f8[:], f8[:], f8[:], f8[:], f8[:]], device=True)
-def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd, ph,  A, a, h, enterP, activateP, choiceP, diffuseP, xis):
+@cuda.jit(restype = int32, argtypes=[int32[:,:], int32[:,:],f4[:], int32, f4[:], int32, int32, int32, f4, f4, f4, f4, f4, f4, f8[:], f8[:], f8[:], f8[:], f8[:], f8[:]], device=True)
+def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd, ph,  A, a, h, enterP, activateP, choiceP, diffuseP, xis, eta):
     cellState = grid[x,y]
 
     width, height = grid.shape
@@ -99,7 +97,7 @@ def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd
 
             # choiceP double used for eta and pk test
             # also same eta is used for each cluster interaction!
-            pk = localPRule(k, clusterSize, clusterOnes, xis, choiceP[x*width + y])
+            pk = localPRule(k, clusterSize, clusterOnes, xis, eta)
 
             if choiceP[x*width + y] < pk:
                 cellState = 1
@@ -110,8 +108,8 @@ def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd
     return cellState 
 
 
-@cuda.jit(argtypes=[int32[:,:], int32[:,:], int32[:,:], f4[:], int32, f4[:], f8[:], f8[:], f8[:], f8[:], f8[:]], target='gpu')
-def stateUpdate(currentGrid, nextGrid, cluster, clusterSize, nClust, clusterOnes, enterP, activateP, choiceP, diffuseP, xis):
+@cuda.jit(argtypes=[int32[:,:], int32[:,:], int32[:,:], f4[:], int32, f4[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:]], target='gpu')
+def stateUpdate(currentGrid, nextGrid, cluster, clusterSize, nClust, clusterOnes, enterP, activateP, choiceP, diffuseP, xis, eta):
     x,y = cuda.grid(2)
     i 	= cuda.grid(1)
     gw,gh = currentGrid.shape
@@ -126,7 +124,7 @@ def stateUpdate(currentGrid, nextGrid, cluster, clusterSize, nClust, clusterOnes
     h = 0
 
     if x < gw and y < gh: 
-        nextGrid[x,y] = cellUpdate(currentGrid, cluster, clusterSize, nClust, clusterOnes, x, y, i, pe, pd, ph,  A, a, h, enterP, activateP, choiceP, diffuseP, xis)
+        nextGrid[x,y] = cellUpdate(currentGrid, cluster, clusterSize, nClust, clusterOnes, x, y, i, pe, pd, ph,  A, a, h, enterP, activateP, choiceP, diffuseP, xis, eta)
 
 def updatePrice(price, clusterSize, nClustOnes):
     # what is beta?????
@@ -180,7 +178,8 @@ for j in range(paths):
         #calculate cluster info
         cluster, clusterSize, nClust, nClustOnes = calcCluster(A) # get cluster info
 
-        xis 	= cuda.device_array(nClust, dtype=np.double, stream = stream)
+        xis = cuda.device_array(nClust, dtype=np.double, stream = stream)
+        eta = cuda.device_array(1, dtype=np.double, stream = stream) # 1 -> w*h*w*h, how to index???
 
 
         with stream.auto_synchronize():
@@ -190,14 +189,17 @@ for j in range(paths):
             dClusterSize = cuda.to_device(clusterSize, stream) #upload cluster size
             dnClustOnes  = cuda.to_device(nClustOnes, stream) #upload ones per cluster
             dxis 		= cuda.to_device(xis, stream)
+            deta      = cuda.to_device(eta, stream)
 
             prng.uniform(enterProbs) #generate first random number
             prng.uniform(activateProbs) #generate second random number
-            prng.uniform(choiceProbs) #generate second random number
-            prng.uniform(diffuseProbs) #generate second random number
+            prng.uniform(diffuseProbs) #generate third random number
+            prng.uniform(choiceProbs) #generate extra random number
+            
             prng.uniform(dxis)
+            prng.uniform(deta)
 
-            stateUpdate[(bpg, bpg), (tpb, tpb), stream](dA, dB, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, dxis)
+            stateUpdate[(bpg, bpg), (tpb, tpb), stream](dA, dB, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, dxis, deta)
 
             #get GPU memory results
             dB.to_host(stream)
