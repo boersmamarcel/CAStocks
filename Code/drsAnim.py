@@ -44,8 +44,8 @@ class CAStochastic(object):
 
     def getActGrid(self):
         price = self.P[self.actT-1]
-        # interq = np.round(self.qgrid/price,decimals=0)
-        interq = self.qgrid
+        interq = np.round(self.qgrid/price,decimals=0)
+        # interq = self.qgrid
         return interq
 
     # done
@@ -196,9 +196,9 @@ fig = plt.figure()
 skip = 10
 saveVideo = False
 
-# cmap = mpl.colors.ListedColormap(['red','white','green'])
-# bounds=[-2000,-.1,.1,2000]
-# norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+cmap = mpl.colors.ListedColormap(['red','white','green'])
+bounds=[-2000,-.1,.1,2000]
+norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
 # writer, needed for saving the video
 # ffmpeg needed, can be downloaded from: http://ffmpegmac.net (for mac)
@@ -223,16 +223,13 @@ c_fu = 0.2 # fundamentalists constant
 c_p = 0.005 # constant for price updating sensitity
 Nx = 100 # width
 Ny = 100 # height
-# Nx = 512 # width
-# Ny = 128 # height
-# >>>>>>> b4312c5f09c4a21c7d279bb38162d29647cd4edb
 k = 400 # k value
 c_l = 20 # c_l
 L_m = 0.01
 model = CAStochastic(Nx, Ny, p_im, steps, initPrice, F, c_im, c_fu, c_p, c_l, L_m, k)
 global im
-im = plt.imshow(model.getActGrid(),interpolation='nearest')
-                    #cmap = cmap,norm=norm)
+im = plt.imshow(model.getActGrid(),interpolation='nearest',
+                    cmap = cmap,norm=norm)
 def animit():
     global im
     im.set_data(np.zeros((Nx,Ny)))
