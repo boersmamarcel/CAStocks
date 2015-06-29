@@ -4,6 +4,7 @@
 # done %% phi^t_fu/im is the same for all fundamentalists (i.e. gaussian random)
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 from scipy.ndimage import measurements
 
@@ -35,6 +36,7 @@ class CAStochastic(object):
         self.numberpos = np.zeros(steps) # number of positive q's
         self.numberneg = np.zeros(steps) # number of negative q's
         self.qtotal = np.zeros(steps) # sum of all q's
+        # im
 
     # done    
     def getGrid(self):
@@ -42,9 +44,9 @@ class CAStochastic(object):
 
     def getActGrid(self):
         price = self.P[self.actT-1]
-        interq = np.rint(self.qgrid/price)
-
-        return 
+        # interq = np.round(self.qgrid/price,decimals=0)
+        interq = self.qgrid
+        return interq
 
     # done
     def getPrice(self):
@@ -131,7 +133,8 @@ class CAStochastic(object):
     
         
     # done
-    def doStep(self):
+    def doStep(self,i):
+        global im
         (width, height) = self.grid.shape
         time = self.calck()
         self.actT = time
@@ -139,17 +142,22 @@ class CAStochastic(object):
         self.phi_fu = np.random.normal(0,1)
         self.phi_im = np.random.normal(0,1)
 
-        for w in range(width): # loop grid
+        for w in range(width): # calculate new grid
             for h in range(height):
                 self.doCellStep(w,h)
 
+        # save updated grids
         self.Vgrid = self.VgridNew
         self.qgrid = self.qgridNew
 
+        # update price and save change information
         self.updatePrice()
         self.saveInfo(time)
         
-        return
+        # return stuff for animation
+        A = self.getActGrid()
+        im.set_data(A)
+        return im
         
     # done
     def doCellStep(self, i, j):
@@ -182,21 +190,39 @@ class CAStochastic(object):
     def getData(self):
         return self.qpos, self.qneg, self.numberpos, self.numberneg, self.qtotal
 
-# import matplotlib as mpl
-# import matplotlib.animation as animation
-# fig = plt.figure()
+import matplotlib as mpl
+import matplotlib.animation as animation
+fig = plt.figure()
+skip = 10
+saveVideo = False
+
+# cmap = mpl.colors.ListedColormap(['red','white','green'])
+# bounds=[-2000,-.1,.1,2000]
+# norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+# writer, needed for saving the video
+# ffmpeg needed, can be downloaded from: http://ffmpegmac.net (for mac)
+Writer = animation.writers['ffmpeg']
+writer = Writer(fps=15, metadata=dict(artist='MarcelBoersma&AlexDeGeus&RoanVanLeeuwen'), bitrate=1800)
+
+# def init():
+    # im.set_data(self.ActGrid())
+def animate(i):
+    A = self.getActGrid()
+    im.set_data(A)
+    return im
 
 #%matplotlib inline
 
-steps = 300
+steps = 50
 p_im = 0.5 # probability that imitator
 initPrice = 100 # initial price
 F = 100 # Fundamental price
 c_im = 0.7 # imitators constant
 c_fu = 0.2 # fundamentalists constant
 c_p = 0.005 # constant for price updating sensitity
-Nx = 20 # width
-Ny = 20 # height
+Nx = 100 # width
+Ny = 100 # height
 # Nx = 512 # width
 # Ny = 128 # height
 # >>>>>>> b4312c5f09c4a21c7d279bb38162d29647cd4edb
@@ -204,23 +230,32 @@ k = 400 # k value
 c_l = 20 # c_l
 L_m = 0.01
 model = CAStochastic(Nx, Ny, p_im, steps, initPrice, F, c_im, c_fu, c_p, c_l, L_m, k)
-
+global im
+im = plt.imshow(model.getActGrid(),interpolation='nearest')
+                    #cmap = cmap,norm=norm)
+def animit():
+    global im
+    im.set_data(np.zeros((Nx,Ny)))
 i = 0
-for i in range(0,steps):
-    model.doStep()
-    print i
+# for i in range(0,steps):
+anim = animation.FuncAnimation(fig, model.doStep, frames=steps+1, interval=4,init_func=animit)
+plt.show()
+    # model.doStep()
+    # print i
+
 P,lP,nlP = model.getPrice()
 print P
 print "the minimumvalue is", round(min(P),4)
 print "the maximumvalue is", round(max(P),4)
 print "where the average is", round(np.mean(P),4)
 
+plt.figure()
 plt.plot(P)
 plt.xlabel('time in steps of 1 [-]')
 plt.ylabel('Price [-]')
 plt.show()
 
-q1,q2,q3,q4,qs = model.getData()
+# q1,q2,q3,q4,qs = model.getData()
 
 x = range(0,40)
 if False:
@@ -238,34 +273,5 @@ if False:
     plt.show()
 
 
-import matplotlib as mpl
-import matplotlib.animation as animation
-skip = 10
-saveVideo = False
-
-cmap = mpl.colors.ListedColormap(['red','white','green'])
-bounds=[-2000,-.1,.1,2000]
-norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-
-im = plt.imshow(A,interpolation='nearest',
-                    cmap = cmap,norm=norm)
-
-
-# writer, needed for saving the video
-# ffmpeg needed, can be downloaded from: http://ffmpegmac.net (for mac)
-Writer = animation.writers['ffmpeg']
-writer = Writer(fps=15, metadata=dict(artist='MarcelBoersma&AlexDeGeus&RoanVanLeeuwen'), bitrate=1800)
-im = plt.imshow(field)
-
-
-def init():
-    im.set_data(self.ActGrid())
-def animate(i):
-    A = self.getActGrid()
-    im.set_data(A)
-    return im
-
-anim = animation.FuncAnimation(fig, animate, frames=4813/skip, interval=4)
 if saveVideo:
     anim.save('activityAnimation.mp4', writer=writer)
-plt.show()
