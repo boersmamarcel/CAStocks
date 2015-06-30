@@ -26,6 +26,7 @@ class CAStochastic(object):
         self.P[0] = initPrice
         self.LogRet = np.zeros(steps)
         self.nLogRet = np.zeros(steps)
+        self.steps = steps
         self.F = F
         self.width = width
         self.height = height
@@ -134,7 +135,11 @@ class CAStochastic(object):
         
     # done
     def doStep(self,i):
-        global im
+        global im, fig
+        if i == self.steps-1:
+            print 'jaaaaaaa'
+            plt.close(fig)
+        
         (width, height) = self.grid.shape
         time = self.calck()
         self.actT = time
@@ -157,6 +162,7 @@ class CAStochastic(object):
         # return stuff for animation
         A = self.getActGrid()
         im.set_data(A)
+
         return im
         
     # done
@@ -184,7 +190,7 @@ class CAStochastic(object):
         self.P[t] = self.P[t-1] + self.c_p*np.sum(self.qgrid)/(self.width*self.height)
         self.LogRet[t-1] = np.log(self.P[t]) - np.log(self.P[t-1])
         self.nLogRet[t-1] = (self.LogRet[t-1] - np.mean(self.LogRet))/np.std(self.LogRet)
-        print "price updated"
+        # print "price updated"
         return
 
     def getData(self):
@@ -192,6 +198,7 @@ class CAStochastic(object):
 
 import matplotlib as mpl
 import matplotlib.animation as animation
+global fig
 fig = plt.figure()
 skip = 10
 saveVideo = False
@@ -207,14 +214,14 @@ writer = Writer(fps=15, metadata=dict(artist='MarcelBoersma&AlexDeGeus&RoanVanLe
 
 # def init():
     # im.set_data(self.ActGrid())
-def animate(i):
-    A = self.getActGrid()
-    im.set_data(A)
-    return im
+# def animate(i):
+#     A = self.getActGrid()
+#     im.set_data(A)
+#     return im
 
 #%matplotlib inline
 
-steps = 600
+steps = 60
 p_im = 0.8 # probability that imitator
 initPrice = 100 # initial price
 F = 100 # Fundamental price
@@ -251,19 +258,21 @@ print "where the average is", round(np.mean(P),4)
 # plt.xlabel('time in steps of 1 [-]')
 # plt.ylabel('Price [-]')
 # plt.show()
-fig = plt.figure()
-ax = fig.add_subplot(121)
+fig2 = plt.figure()
+ax = fig2.add_subplot(121)
 hist,bin = np.histogram(nlP)#,bins=10)
 ax.plot(hist)
 ax.set_xscale('log')
 ax.set_yscale('log')
 # plt.show()
 
-fax = fig.add_subplot(122)
+fax = fig2.add_subplot(122)
 fax.hist(nlP,normed=1)
+fax.set_yscale('log')
+fax.set_xscale('log')
 plt.show()
 
-# q1,q2,q3,q4,qs = model.getData()
+q1,q2,q3,q4,qs = model.getData()
 
 x = range(0,40)
 if False:
