@@ -236,7 +236,7 @@ for j in range(paths):
     
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    hist, bin_edges = np.histogram(clusterSize)
+    hist, bin_edges = np.histogram(clusterSize, bins=20)
     print "cluster size distribution", hist
     ax.plot(hist)
     ax.set_xscale('log')
