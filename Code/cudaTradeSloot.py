@@ -45,7 +45,7 @@ def calcCluster(grid):
 
     return lw, area, num, cluster_ones
 
-@cuda.jit(restype = f4, argtypes=[int32, f4, f4, f4[:], f4[:], f8[:], f8[:]], device=True)
+@cuda.jit(restype = f4, argtypes=[int32, f4, f4, f4[:], f4[:], f8[:], f8], device=True)
 def localIRule(k, A, a, clusterSize, nClustOnes, xi, eta):
     # normalization constant
     #immitator, so align spin state
@@ -53,16 +53,16 @@ def localIRule(k, A, a, clusterSize, nClustOnes, xi, eta):
     
     c = 0.0
     for i in range(int(nClustOnes[k-1])): # positive spins
-        c += (A*(xi[k-1]*2-1) + a*eta[0])*1 # how to index eta??
+        c += (A*(xi[k-1]*2-1) + a*eta)*1 # how to index eta??
     for i in range(int(clusterSize[k-1] - nClustOnes[k-1])): # negative spins
-        c += (A*(xi[k-1]*2-1) + a*eta[0])*-1 # how to index eta??
+        c += (A*(xi[k-1]*2-1) + a*eta)*-1 # how to index eta??
         
     return I*c #+ self.calch() 
 
 
 
 
-@cuda.jit(restype = f4, argtypes=[int32, int32, f4, f4, f4, f4, f4[:], f4[:], f8[:], f8[:]], device=True)
+@cuda.jit(restype = f4, argtypes=[int32, int32, f4, f4, f4, f4, f4[:], f4[:], f8[:], f8], device=True)
 def localPRule(k, fundState, price, funPrice, A, a, clusterSize, nClustOnes, xi, eta):
     if fundState == 1:
         #fundamentalist, so determine state spin with fundamental price
@@ -143,7 +143,7 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
 
                 # choiceP double used for eta and pk test
                 # also same eta is used for each cluster interaction!
-                pk = localPRule(k, fundGrid[x,y], price, fundaPrice, A, a, clusterSize, clusterOnes, xis, eta)
+                pk = localPRule(k, fundGrid[x,y], price, fundaPrice, A, a, clusterSize, clusterOnes, xis, eta[x*width + y])
 
                 if choiceP[x*width + y] < pk:
                     cellState = 1
@@ -208,18 +208,18 @@ for j in range(paths):
         cluster, clusterSize, nClust, nClustOnes = calcCluster(A) # get cluster info
 
         xis = cuda.device_array(nClust, dtype=np.double, stream = stream)
-        eta = cuda.device_array(1, dtype=np.double, stream = stream) # 1 -> w*h*w*h, how to index???
+        eta = cuda.device_array(w*h, dtype=np.double, stream = stream) # 1 -> w*h*w*h, how to index???
 
 
         with stream.auto_synchronize():
             dA = cuda.to_device(A, stream) #upldate grid
             dB = cuda.to_device(B, stream) #upload new locatoin
             dC = cuda.to_device(C, stream) #fundamentalist/immitators grid
+
             dCluster = cuda.to_device(cluster, stream) #upload cluster grid to GPU
             dClusterSize = cuda.to_device(clusterSize, stream) #upload cluster size
             dnClustOnes  = cuda.to_device(nClustOnes, stream) #upload ones per cluster
-            dxis 		= cuda.to_device(xis, stream)
-            deta      = cuda.to_device(eta, stream)
+
 
             prng.uniform(enterProbs) #generate first random number
             prng.uniform(activateProbs) #generate second random number
@@ -228,10 +228,10 @@ for j in range(paths):
 
             prng.uniform(fundamentaListProbs)
             
-            prng.uniform(dxis)
-            prng.uniform(deta)
+            prng.uniform(xis)
+            prng.uniform(eta)
 
-            stateUpdate[(bpg, bpg), (tpb, tpb), stream](price, fundPrice, dA, dB, dC, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, fundamentaListProbs, dxis, deta)
+            stateUpdate[(bpg, bpg), (tpb, tpb), stream](price, fundPrice, dA, dB, dC, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, fundamentaListProbs, xis, eta)
 
             #get GPU memory results
             dB.to_host(stream)
