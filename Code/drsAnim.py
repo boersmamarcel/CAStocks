@@ -214,15 +214,15 @@ def animate(i):
 
 #%matplotlib inline
 
-steps = 50
-p_im = 0.5 # probability that imitator
+steps = 600
+p_im = 0.8 # probability that imitator
 initPrice = 100 # initial price
 F = 100 # Fundamental price
 c_im = 0.7 # imitators constant
 c_fu = 0.2 # fundamentalists constant
 c_p = 0.005 # constant for price updating sensitity
-Nx = 100 # width
-Ny = 100 # height
+Nx = 20 # width
+Ny = 20 # height
 k = 400 # k value
 c_l = 20 # c_l
 L_m = 0.01
@@ -235,7 +235,7 @@ def animit():
     im.set_data(np.zeros((Nx,Ny)))
 i = 0
 # for i in range(0,steps):
-anim = animation.FuncAnimation(fig, model.doStep, frames=steps+1, interval=4,init_func=animit)
+anim = animation.FuncAnimation(fig, model.doStep, frames=steps, interval=1,init_func=animit)
 plt.show()
     # model.doStep()
     # print i
@@ -246,10 +246,21 @@ print "the minimumvalue is", round(min(P),4)
 print "the maximumvalue is", round(max(P),4)
 print "where the average is", round(np.mean(P),4)
 
-plt.figure()
-plt.plot(P)
-plt.xlabel('time in steps of 1 [-]')
-plt.ylabel('Price [-]')
+# plt.figure()
+# plt.plot(P)
+# plt.xlabel('time in steps of 1 [-]')
+# plt.ylabel('Price [-]')
+# plt.show()
+fig = plt.figure()
+ax = fig.add_subplot(121)
+hist,bin = np.histogram(nlP)#,bins=10)
+ax.plot(hist)
+ax.set_xscale('log')
+ax.set_yscale('log')
+# plt.show()
+
+fax = fig.add_subplot(122)
+fax.hist(nlP,normed=1)
 plt.show()
 
 # q1,q2,q3,q4,qs = model.getData()
