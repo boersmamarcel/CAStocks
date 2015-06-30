@@ -37,6 +37,16 @@ plt.scatter(xs, count)
 plt.yscale('log')
 plt.show()
 
+xcorrelation = []
+for lag in range(1,50): # array of correlation
+    xcorrelation = np.append(xcorrelation,  np.sum(np.multiply(returns[lag:],returns[:-lag])))
+xcorrelation = xcorrelation/xcorrelation[0] # normalize to first entry
+
+print "x-cor"
+plt.figure()
+plt.plot(xcorrelation)
+plt.show()
+
 # count, bins, ignored = plt.hist(values, 30, normed=True)
 # plt.plot(bins, 1/(sigma * np.sqrt(2 * np.pi)) *
 #                 np.exp( - (bins - mu)**2 / (2 * sigma**2) ),

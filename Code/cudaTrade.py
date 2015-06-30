@@ -154,7 +154,7 @@ stream = cuda.stream() #initialize memory stream
 # instantiate a cuRAND PRNG
 prng = curand.PRNG(curand.PRNG.MRG32K3A, stream=stream)
 
-paths = 1
+paths = 10
 
 pricePath = []
 
@@ -217,61 +217,61 @@ for j in range(paths):
         LogReturns = np.append(LogReturns, np.log(prices[i]) - np.log(prices[i-1]) )
         nLogReturns = np.append(nLogReturns, (LogReturns[i] - np.mean(LogReturns))/np.std(LogReturns) )
 
-        if i % int(steps/nView) == 0:
-            cmap = mpl.colors.ListedColormap(['red','white','green'])
-            bounds=[-1.1,-.1,.1,1.1]
-            norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+        # if i % int(steps/nView) == 0:
+        #     cmap = mpl.colors.ListedColormap(['red','white','green'])
+        #     bounds=[-1.1,-.1,.1,1.1]
+        #     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
-            im = plt.imshow(B.astype(int),interpolation='nearest', cmap = cmap,norm=norm)
+        #     im = plt.imshow(B.astype(int),interpolation='nearest', cmap = cmap,norm=norm)
 
-            plt.show()
+        #     plt.show()
     
         pricePath.append(prices)
         
     # make some plots
-    print "fraction active traders"
-    plt.figure()
-    plt.plot(activeTraders)
-    plt.show()
+    # print "fraction active traders"
+    # plt.figure()
+    # plt.plot(activeTraders)
+    # plt.show()
     
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    hist, bin_edges = np.histogram(clusterSize, bins=20)
-    print "cluster size distribution", hist
-    ax.plot(hist)
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    plt.show()
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111)
+    # hist, bin_edges = np.histogram(clusterSize, bins=20)
+    # print "cluster size distribution", hist
+    # ax.plot(hist)
+    # ax.set_xscale('log')
+    # ax.set_yscale('log')
+    # plt.show()
     
-    print "normalized log returns"
-    plt.figure()
-    plt.plot(nLogReturns)
-    plt.show()
+    # print "normalized log returns"
+    # plt.figure()
+    # plt.plot(nLogReturns)
+    # plt.show()
     
-    mu, sigma = np.mean(nLogReturns), np.std(nLogReturns)
-    x = np.linspace(np.amin(nLogReturns),np.amax(nLogReturns),100)
+    # mu, sigma = np.mean(nLogReturns), np.std(nLogReturns)
+    # x = np.linspace(np.amin(nLogReturns),np.amax(nLogReturns),100)
     
-    print "normalized log retrun distribution"
-    plt.figure()
-    plt.hist(nLogReturns, normed=1)
-    plt.plot(x,mlab.normpdf(x,mu,sigma))
-    plt.show()
+    # print "normalized log retrun distribution"
+    # plt.figure()
+    # plt.hist(nLogReturns, normed=1)
+    # plt.plot(x,mlab.normpdf(x,mu,sigma))
+    # plt.show()
     
-    for lag in range(1,50): # array of correlation
-        xcorrelation = np.append(xcorrelation,  np.sum(np.multiply(xchange[lag:],xchange[:-lag])))
-    xcorrelation = xcorrelation/xcorrelation[0] # normalize to first entry
+    # for lag in range(1,50): # array of correlation
+    #     xcorrelation = np.append(xcorrelation,  np.sum(np.multiply(xchange[lag:],xchange[:-lag])))
+    # xcorrelation = xcorrelation/xcorrelation[0] # normalize to first entry
     
-    print "x-cor"
-    plt.figure()
-    plt.plot(xcorrelation)
-    plt.show()
+    # print "x-cor"
+    # plt.figure()
+    # plt.plot(xcorrelation)
+    # plt.show()
         
         
 
 
-#plt.figure()
-#for j in range(len(pricePath)):
-#    plt.plot(pricePath[j])
-#plt.show()
+plt.figure()
+for j in range(len(pricePath)):
+   plt.plot(pricePath[j])
+plt.show()
 #
 #print np.matrix(B).max()
