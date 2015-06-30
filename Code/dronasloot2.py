@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 import matplotlib.mlab as mlab
 import pandas as pd
 
-class CAStochastic(object):
+class CAmodel(object):
     
     def __init__(self, width, height, p_im, c_im, c_fu, c_p, c_l, k, L_m, initPrice, F, steps):
         
@@ -61,8 +61,15 @@ class CAStochastic(object):
         self.Price_list = np.array([initPrice])
         self.logReturn = np.array([0])
         self.nlogReturn = np.array([0])
+        
         self.Price_change = np.array([])
         self.Fluctation = np.array([])
+        
+        self.q_avg_im = np.array([])
+        self.q_avg_fu = np.array([])
+        
+        self.eta_im_list = np.array([])
+        self.eta_fu_list = np.array([])
         
      
     def calcEta(self): # set news sensitivity paramter
@@ -135,12 +142,23 @@ class CAStochastic(object):
         self.V = self.Vnext.copy() # save new grid
         
         nextPrice = self.updatePrice()
+        
+        # save returns data
         self.Price_list = np.append(self.Price_list, nextPrice)
         self.logReturn = np.append(self.logReturn, self.Price_list[-1] - self.Price_list[-2])
         self.nlogReturn = np.append(self.nlogReturn, (self.logReturn[-1] - np.mean(self.logReturn))/np.std(self.logReturn))
         
+        # save price change and volatility data
         self.Price_change = np.append(self.Price_change, self.dp)
         self.Fluctation = np.append(self.Fluctation, self.L_t)
+        
+        # save q data imitators and fundamentalists
+        self.q_avg_im = np.append(self.q_avg_im, np.mean(self.q[self.im_idx]))
+        self.q_avg_fu = np.append(self.q_avg_fu, np.mean(self.q[self.fu_idx]))
+        
+        # save eta data
+        self.eta_im_list = np.append(self.eta_im_list, self.eta_im)
+        self.eta_fu_list = np.append(self.eta_fu_list, self.eta_fu)
         
 #        print self.eta_fu, self.eta_im, self.L_t, self.M_t, self.Price_list[-1]
         
@@ -169,13 +187,13 @@ class CAStochastic(object):
         
         hist, bin_edges = np.histogram(self.nlogReturn, bins=20, normed=True)
         bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
-        plt.scatter(bin_means, hist, marker='o', label='model')
+        p2 = plt.scatter(bin_means, hist, marker='o', label='model')
         
         hist, bin_edges = np.histogram(sp500_nlogReturns, bins=20, normed=True)
         bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
-        plt.scatter(bin_means, hist, marker='+', label='sp500')
+        p3 = plt.scatter(bin_means, hist, marker='v', color='g', label='sp500')
         
-#        plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
+        plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
         plt.yscale('log')
         plt.xlim([-6,6])
         plt.show()
@@ -191,18 +209,30 @@ class CAStochastic(object):
         plt.show()
         
         self.Price_correlation = np.array([])
-        for lag in range(1,50): # array of correlation
+        for lag in range(1,500): # array of correlation
             self.Price_correlation = np.append(self.Price_correlation,  np.sum(np.multiply(self.Price_change[lag:],self.Price_change[:-lag])))
         self.Price_correlation = self.Price_correlation/self.Price_correlation[0] # normalize to first entry
         
         self.v_clustering = np.array([])
-        for lag in range(1,50): # array of correlation
+        for lag in range(1,500): # array of correlation
             self.v_clustering = np.append(self.v_clustering,  np.sum(np.multiply(self.Fluctation[lag:],self.Fluctation[:-lag])))
         self.v_clustering = self.v_clustering/self.v_clustering[0] # normalize to first entry
         
         plt.figure()
         p1, = plt.plot(self.Price_correlation, label='price autocorrelation')
         p2, = plt.plot(self.v_clustering, label='volatility clustering')
+        plt.legend(handles=[p1, p2], bbox_to_anchor=(1.05, 1), loc=2)
+        plt.show()
+        
+        plt.figure()
+        p1, = plt.plot(self.q_avg_fu, label='mean q fundamentalists')
+        p2, = plt.plot(self.q_avg_im, label='mean q imitators')
+        plt.legend(handles=[p1, p2], bbox_to_anchor=(1.05, 1), loc=2)
+        plt.show()
+        
+        plt.figure()
+        p1, = plt.plot(self.eta_fu_list, label='eta fundamentalists')
+        p2, = plt.plot(self.eta_im_list, label='eta imitators')
         plt.legend(handles=[p1, p2], bbox_to_anchor=(1.05, 1), loc=2)
         plt.show()
         
@@ -239,7 +269,7 @@ F = 100 # Fundamental price
 
 steps = 1000
 
-model = CAStochastic(width, height, p_im, c_im, c_fu, c_p, c_l, k, L_m, initPrice, F, steps) 
+model = CAmodel(width, height, p_im, c_im, c_fu, c_p, c_l, k, L_m, initPrice, F, steps) 
 print "running model"    
 model.run()   
 
