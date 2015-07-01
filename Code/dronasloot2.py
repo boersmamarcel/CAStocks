@@ -195,7 +195,7 @@ class CAmodel(object):
         
         plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
         plt.yscale('log')
-        plt.xlim([-6,6])
+        plt.xlim([xmin,xmax])
         plt.show()
         
         plt.clf()

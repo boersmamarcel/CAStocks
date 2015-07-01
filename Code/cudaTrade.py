@@ -12,6 +12,42 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.mlab as mlab
 
+# read in S&P 500 data set
+path = "table.csv"
+print "reading data..."
+sp500 = pd.read_csv(path, sep=',')
+print "done"
+
+k = 400 # how many steps to look in the past for volatility levels
+
+# compute returns S&P 500, price clustering and volatility clustering
+sp500_open = sp500[['Open']].as_matrix().flatten()
+sp500_close = sp500[['Close']].as_matrix().flatten()
+
+# normalized log returns for distribution analysis
+sp500_logReturns = np.log(sp500_close) - np.log(sp500_open)
+sp500_nlogReturns = np.array([])
+for i in range(1, sp500_logReturns.size):
+    val = (sp500_logReturns[i] - np.mean(sp500_logReturns[:i+1]))/np.std(sp500_logReturns[:i+1])
+    sp500_nlogReturns = np.append(sp500_nlogReturns, val)
+
+# price and volatility clustering
+sp500_price_change = np.divide((sp500_close[:-1] - sp500_open[1:]),sp500_open[1:])
+sp500_volatility = np.array([])
+for i in range(1,sp500_open.size): # compute volatility
+    ki = k if k < i else i
+    price_avg = np.mean(sp500_open[i-ki:i+1])
+    value = np.sum(np.absolute(sp500_open[i-ki:i+1] - price_avg))/(1.0*ki*price_avg)
+    sp500_volatility = np.append(sp500_volatility, value)
+
+sp500_price_clustering = np.array([])
+sp500_volatility_clustering = np.array([])
+for lag in range(1,500): # array of correlation with certain lags
+    sp500_price_clustering = np.append(sp500_price_clustering,  np.sum(np.multiply(sp500_price_change[lag:],sp500_price_change[:-lag])))
+    sp500_volatility_clustering = np.append(sp500_volatility_clustering,  np.sum(np.multiply(sp500_volatility[lag:],sp500_volatility[:-lag])))
+sp500_price_clustering = sp500_price_clustering/sp500_price_clustering[0] # normalize to first entry
+sp500_volatility_clustering = sp500_volatility_clustering/sp500_volatility_clustering[0] # normalize to first entry
+
 
 cuda.select_device(0) #select videocard
 
@@ -38,7 +74,7 @@ def calcCluster(grid):
 
     return lw, area, num, cluster_ones
 
-@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8[:]], device=True)
+@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8], device=True)
 def localIRule(k, clusterSize, nClustOnes, xi, eta):
     # normalization constant
     I = 1./clusterSize[k-1]
@@ -46,17 +82,18 @@ def localIRule(k, clusterSize, nClustOnes, xi, eta):
     # sum active traders +1 and -1 states
     A = 1.8
     a = 2*A
+    
+    n1 = nClustOnes[k-1]
+    n2 = clusterSize[k-1] - nClustOnes[k-1]
 
     c = 0.0
-    for i in range(int(nClustOnes[k-1])): # positive spins
-        c += (A*(xi[k-1]*2-1) + a*eta[0])*1 # how to index eta??
-    for i in range(int(clusterSize[k-1] - nClustOnes[k-1])): # negative spins
-        c += (A*(xi[k-1]*2-1) + a*eta[0])*-1 # how to index eta??
+    c += ( A*(xi[k-1]*2-1)*n1 + a*(eta*2*n1 -n1) )*1 # positive spins 
+    c += ( A*(xi[k-1]*2-1)*n2 + a*(eta*2*n2 -n2) )*-1 # negative spins 
         
     return I*c #+ self.calch() 
 
 
-@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8[:]], device=True)
+@cuda.jit(restype = f4, argtypes=[int32, f4[:], f4[:], f8[:], f8], device=True)
 def localPRule(k, clusterSize, nClustOnes, xi, eta):
 	return 1./(1+math.exp(-2*localIRule(k, clusterSize, nClustOnes, xi, eta)))
 
@@ -97,7 +134,7 @@ def cellUpdate(grid, cluster, clusterSize, nClust, clusterOnes, x, y, i,  pe, pd
 
             # choiceP double used for eta and pk test
             # also same eta is used for each cluster interaction!
-            pk = localPRule(k, clusterSize, clusterOnes, xis, eta)
+            pk = localPRule(k, clusterSize, clusterOnes, xis, eta[x*width + y])
 
             if choiceP[x*width + y] < pk:
                 cellState = 1
@@ -139,7 +176,7 @@ def updatePrice(price, clusterSize, nClustOnes):
         price = 0 # lower bound
 
     return x, price
-    
+   
 #upload memory to gpu
 bpg = 50
 tpb = 32
@@ -147,14 +184,14 @@ tpb = 32
 nView = 5
 steps = 2000
 
-initialPrice = 500
+initialPrice = 100
 
 stream = cuda.stream() #initialize memory stream
 
 # instantiate a cuRAND PRNG
 prng = curand.PRNG(curand.PRNG.MRG32K3A, stream=stream)
 
-paths = 10
+paths = 1
 
 pricePath = []
 
@@ -179,7 +216,7 @@ for j in range(paths):
         cluster, clusterSize, nClust, nClustOnes = calcCluster(A) # get cluster info
 
         xis = cuda.device_array(nClust, dtype=np.double, stream = stream)
-        eta = cuda.device_array(1, dtype=np.double, stream = stream) # 1 -> w*h*w*h, how to index???
+        eta = cuda.device_array(w*h, dtype=np.double, stream = stream) # 1 -> w*h*w*h, how to index???
 
 
         with stream.auto_synchronize():
@@ -217,58 +254,79 @@ for j in range(paths):
         LogReturns = np.append(LogReturns, np.log(prices[i]) - np.log(prices[i-1]) )
         nLogReturns = np.append(nLogReturns, (LogReturns[i] - np.mean(LogReturns))/np.std(LogReturns) )
 
-        # if i % int(steps/nView) == 0:
-        #     cmap = mpl.colors.ListedColormap(['red','white','green'])
-        #     bounds=[-1.1,-.1,.1,1.1]
-        #     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+        if i % int(steps/nView) == 0:
+             cmap = mpl.colors.ListedColormap(['red','white','green'])
+             bounds=[-1.1,-.1,.1,1.1]
+             norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
-        #     im = plt.imshow(B.astype(int),interpolation='nearest', cmap = cmap,norm=norm)
+             im = plt.imshow(B.astype(int),interpolation='nearest', cmap = cmap,norm=norm)
 
-        #     plt.show()
+             plt.show()
     
         pricePath.append(prices)
         
     # make some plots
-    # print "fraction active traders"
-    # plt.figure()
-    # plt.plot(activeTraders)
-    # plt.show()
+    print "fraction active traders"
+    plt.figure()
+    plt.plot(activeTraders)
+    plt.show()
     
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111)
-    # hist, bin_edges = np.histogram(clusterSize, bins=20)
-    # print "cluster size distribution", hist
-    # ax.plot(hist)
-    # ax.set_xscale('log')
-    # ax.set_yscale('log')
-    # plt.show()
+#    fig = plt.figure()
+#    ax = fig.add_subplot(111)
+#    hist, bin_edges = np.histogram(clusterSize, bins=20)
+#    print "cluster size distribution", hist
+#    ax.plot(hist)
+#    ax.set_xscale('log')
+#    ax.set_yscale('log')
+#    plt.show()
     
-    # print "normalized log returns"
-    # plt.figure()
-    # plt.plot(nLogReturns)
-    # plt.show()
-    
-    # mu, sigma = np.mean(nLogReturns), np.std(nLogReturns)
-    # x = np.linspace(np.amin(nLogReturns),np.amax(nLogReturns),100)
-    
-    # print "normalized log retrun distribution"
-    # plt.figure()
-    # plt.hist(nLogReturns, normed=1)
-    # plt.plot(x,mlab.normpdf(x,mu,sigma))
-    # plt.show()
-    
-    # for lag in range(1,50): # array of correlation
-    #     xcorrelation = np.append(xcorrelation,  np.sum(np.multiply(xchange[lag:],xchange[:-lag])))
-    # xcorrelation = xcorrelation/xcorrelation[0] # normalize to first entry
-    
-    # print "x-cor"
-    # plt.figure()
-    # plt.plot(xcorrelation)
-    # plt.show()
-        
-        
+    print "normalized log returns"
+    plt.figure()
+    plt.plot(nLogReturns)
+    plt.show()
 
-
+    print "normalized log retrun distribution"
+    plt.figure()
+    mu, sigma = np.mean(nLogReturns), np.std(nLogReturns)
+    xmin, xmax = min(np.amin(nLogReturns),-7) , max(np.amax(nLogReturns), 7)
+    x = np.linspace(xmin, xmax, 100)
+    p1, = plt.plot(x,mlab.normpdf(x,mu,sigma), label='normal distribution')
+    
+    hist, bin_edges = np.histogram(nLogReturns, bins=20, normed=True)
+    bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
+    p2 = plt.scatter(bin_means, hist, marker='o', label='model')
+    
+    hist, bin_edges = np.histogram(sp500_nlogReturns, bins=20, normed=True)
+    bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
+    p3 = plt.scatter(bin_means, hist, marker='v', color='g', label='sp500')
+    
+    plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
+    plt.yscale('log')
+    plt.xlim([xmin, xmax])
+    plt.show()
+    
+    volatility = np.array([])
+    for i in range(1,len(prices)): # compute volatility
+        ki = k if k < i else i
+        price_avg = np.mean(prices[i-ki:i+1])
+        value = np.sum(np.absolute(prices[i-ki:i+1] - price_avg))/(1.0*ki*price_avg)
+        volatility = np.append(volatility, value)
+    
+    v_clustering = np.array([])
+    for lag in range(1,500): # array of correlation
+        xcorrelation = np.append(xcorrelation,  np.sum(np.multiply(xchange[lag:],xchange[:-lag])))
+        v_clustering = np.append(v_clustering,  np.sum(np.multiply(volatility[lag:],volatility[:-lag])))
+    xcorrelation = xcorrelation/xcorrelation[0] # normalize to first entry
+    v_clustering = v_clustering/v_clustering[0] # normalize to first entry
+    
+    plt.figure()
+    p1, = plt.plot(xcorrelation, label='price clustering')
+    p2, = plt.plot(v_clustering, label='volatility clustering')
+    p3, = plt.plot(sp500_price_clustering, label='sp500 price clustering')
+    p4, = plt.plot(sp500_volatility_clustering, label='sp500 volatility clustering')
+    plt.legend(handles=[p1, p2, p3, p4], bbox_to_anchor=(1.05, 1), loc=2)
+    plt.show()    
+    
 plt.figure()
 for j in range(len(pricePath)):
    plt.plot(pricePath[j])
