@@ -82,11 +82,11 @@ def localPRule(k, fundState, price, funPrice, A, a, clusterSize, nClustOnes, xi,
             return 1.0
         else:
             return 0.0
-    elif fundState == 2:
+    elif fundState == 2: # or fundState == 0:
         #immitator, so align spin
         return 1./(1+math.exp(-2*localIRule(k, A, a, clusterSize, nClustOnes, xi, eta)))
     else:
-        return 0
+        return 0.0
 
 
 @cuda.jit(argtypes=[f4, f4, int32[:,:], int32[:,:], int32[:,:], int32[:,:], f4[:], int32, f4[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f4], target='gpu')
@@ -113,7 +113,6 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
             # this is the enter probability, where a person has a certain probability of entering the market
             enter = enterP[x*width + y] 
 
-
             #activation probability
             if enter < pe: 
                 #will it be a fundamentalist or immitator at entering state, stays the same for the rest of the time
@@ -122,24 +121,22 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
                     cellState = 1 if choiceP[x*width + y] < 0.5 else -1
                 else:
                     cellState = 1 if price - fundaPrice <= 0 else -1
-                
-
             else:
                 #activate by neighbors
-                vals = 0 #majority vote
+#                vals = 0 #majority vote
                 neighbours = 0
                 if abs(currentGrid[x-1,y]) == 1:
                     neighbours += 1
-                    vals += currentGrid[x-1,y]
+#                    vals += currentGrid[x-1,y]
                 if abs(currentGrid[x,y-1]) == 1:
                     neighbours += 1
-                    vals += currentGrid[x,y-1]
+#                    vals += currentGrid[x,y-1]
                 if abs(currentGrid[(x+1)%width,y]) == 1:
                     neighbours += 1
-                    vals += currentGrid[(x+1)%width,y]
+#                    vals += currentGrid[(x+1)%width,y]
                 if abs(currentGrid[x,(y+1)%height]) == 1:
                     neighbours += 1
-                    vals += currentGrid[x,(y+1)%height]
+#                    vals += currentGrid[x,(y+1)%height]
         
                 activated = (1-(1-ph)**neighbours)
                 if activateP[x*width + y] < activated:
@@ -159,8 +156,6 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
             else:
                 k = cluster[x,y] #which cluster
 
-                # choiceP double used for eta and pk test
-                # also same eta is used for each cluster interaction!
                 pk = localPRule(k, fundState, price, fundaPrice, A, a, clusterSize, clusterOnes, xis, eta[x*width + y])
 
                 if choiceP[x*width + y] < pk:
@@ -231,7 +226,7 @@ for j in range(paths):
 
 
         with stream.auto_synchronize():
-            dA = cuda.to_device(A, stream) #upldate grid
+            dA = cuda.to_device(A, stream) #upload grid
             dB = cuda.to_device(B, stream) #upload new locatoin
             dC = cuda.to_device(C, stream) #fundamentalist/immitators grid
 
