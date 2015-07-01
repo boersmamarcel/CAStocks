@@ -15,8 +15,8 @@ import matplotlib.mlab as mlab
 
 cuda.select_device(0) #select videocard
 
-w = 120
-h = 30
+w = 20
+h = 20
 
 initProb = 0.05
 pim = 0.0 # probability of being an imitator
@@ -85,8 +85,8 @@ def localPRule(k, fundState, price, funPrice, A, a, clusterSize, nClustOnes, xi,
     elif fundState == 2:
         #immitator, so align spin
         return 1./(1+math.exp(-2*localIRule(k, A, a, clusterSize, nClustOnes, xi, eta)))
-    elif fundState == 0:
-        print 'error'
+    else:
+        return 0
 
 
 @cuda.jit(argtypes=[f4, f4, int32[:,:], int32[:,:], int32[:,:], int32[:,:], f4[:], int32, f4[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f4], target='gpu')
@@ -102,10 +102,11 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
     
     A = 1.8
     a = 2*A
-    h = 0
+#    h = 0
 
     if x < gw and y < gh: 
         cellState = currentGrid[x,y]
+        fundState = fundGrid[x,y]
         width, height = currentGrid.shape
 
         if cellState == 0:
@@ -160,7 +161,7 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
 
                 # choiceP double used for eta and pk test
                 # also same eta is used for each cluster interaction!
-                pk = localPRule(k, fundGrid[x,y], price, fundaPrice, A, a, clusterSize, clusterOnes, xis, eta[x*width + y])
+                pk = localPRule(k, fundState, price, fundaPrice, A, a, clusterSize, clusterOnes, xis, eta[x*width + y])
 
                 if choiceP[x*width + y] < pk:
                     cellState = 1
@@ -188,8 +189,8 @@ def updatePrice(price, clusterSize, nClustOnes):
 bpg = 50
 tpb = 32
 
-nView = 5
-steps = 2000
+nView = 3
+steps = 3
 
 initialPrice = 100
 
@@ -253,10 +254,17 @@ for j in range(paths):
 
             #get GPU memory results
             dB.to_host(stream)
-
+            dC.to_host(stream)
+            
+            
 
         #set new grid as current grid and repeat
         A = B.copy()
+        print np.where(C==1)[0].size, np.where(C==2)[0].size, np.where(np.absolute(B)==1)[0].size
+        print C
+        print B
+        D = np.subtract(B,C)
+        print D, np.where(D!=0)[0].size
 
         x, price = updatePrice(price, clusterSize, nClustOnes)
         prices.append(price)
