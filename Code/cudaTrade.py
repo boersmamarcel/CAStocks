@@ -167,7 +167,7 @@ def stateUpdate(currentGrid, nextGrid, cluster, clusterSize, nClust, clusterOnes
 
 def updatePrice(price, clusterSize, nClustOnes):
     # what is beta?????
-    x = 0.000001
+    x = 1.0/(w*h*w*h)
     # matrix form of summation
     vals = np.sum( np.multiply(clusterSize, nClustOnes-(clusterSize-nClustOnes) ) )
            
