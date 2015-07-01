@@ -15,11 +15,11 @@ import matplotlib.mlab as mlab
 
 cuda.select_device(0) #select videocard
 
-w = 5
-h = 5
+w = 50
+h = 50
 
 initProb = 0.5
-pim = 0.5 # probability of being an imitator
+pim = 0.9 # probability of being an imitator
 
 #generate random traders
 A = np.array(np.random.choice([0, 1], p=[1-initProb, initProb], size=w*h, replace=True).reshape(h,w), dtype=np.int32)
@@ -51,8 +51,8 @@ def calcCluster(grid):
 
     return lw, area, num, cluster_ones
 
-@cuda.jit(restype = f4, argtypes=[int32, f4, f4, f4[:], f4[:], f8[:], f8], device=True)
-def localIRule(k, A, a, clusterSize, nClustOnes, xi, eta):
+@cuda.jit(restype = f8, argtypes=[int32, f4, f4, f4[:], f4[:], f8[:], f8], device=True)
+def localIRule(k, A, a, clusterSize, nClustOnes, xi, aneta):
 # normalization constant
     I = 1./clusterSize[k-1]
     
@@ -64,17 +64,18 @@ def localIRule(k, A, a, clusterSize, nClustOnes, xi, eta):
     n2 = clusterSize[k-1] - nClustOnes[k-1]
 
     c = 0.0
-    c += ( A*(xi[k-1]*2-1)*n1 + a*(eta*2*n1 -n1) )*1 # positive spins 
-    c += ( A*(xi[k-1]*2-1)*n2 + a*(eta*2*n2 -n2) )*-1 # negative spins 
+    c += ( A*(xi[k-1]*2-1)*n1 + a*(aneta*2*n1 -n1) )*1 # positive spins 
+    c += ( A*(xi[k-1]*2-1)*n2 + a*(aneta*2*n2 -n2) )*-1 # negative spins 
         
     return I*c #+ self.calch() 
 
 
 
 
-@cuda.jit(restype = f4, argtypes=[int32, int32, f4, f4, f4, f4, f4[:], f4[:], f8[:], f8], device=True)
-def localPRule(k, fundState, price, funPrice, A, a, clusterSize, nClustOnes, xi, eta):
-    if fundState == 1:
+@cuda.jit(restype = f8, argtypes=[int32, int32, f4, f4, f4, f4, f4[:], f4[:], f8[:], f8], device=True)
+def localPRule(k, FS, price, funPrice, A, a, clusterSize, nClustOnes, xi, aneta):
+
+    if FS == 1:
         #fundamentalist, so determine state spin with fundamental price
         diff = price - funPrice 
         #if the stock is overvalued then you want to sell (-1) else buy (1)
@@ -83,11 +84,12 @@ def localPRule(k, fundState, price, funPrice, A, a, clusterSize, nClustOnes, xi,
             return 1.0
         else:
             return 0.0
-    elif fundState == 2:
+
+    elif FS == 2:
         #immitator, so align spin
-        return 1./(1+math.exp(-2*localIRule(k, A, a, clusterSize, nClustOnes, xi, eta)))
+        return 1./(1+math.exp(-2*localIRule(k, A, a, clusterSize, nClustOnes, xi, aneta)))
     else:
-        return 0
+        return -1.0
 
 
 @cuda.jit(argtypes=[f4, f4, int32[:,:], int32[:,:], int32[:,:], int32[:,:], int32[:,:], f4[:], int32, f4[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f4], target='gpu')
@@ -118,11 +120,11 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, nextFundGrid
             #activation probability
             if enter < pe: 
                 #will it be a fundamentalist or immitator at entering state, stays the same for the rest of the time
-                fundState = 1 if fundP[x*width + y] < 1-p_im else 2
+                fundState = 1 if fundP[x*width + y] < (1-p_im) else 2
                 if fundState == 2:
                     cellState = 1 if choiceP[x*width + y] < 0.5 else -1
                 else:
-                    cellState = 1 if price - fundaPrice <= 0 else -1
+                    cellState = 1 if (price - fundaPrice) <= 0 else -1
 
             else:
                 #activate by neighbors
@@ -143,11 +145,11 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, nextFundGrid
         
                 activated = (1-(1-ph)**neighbours)
                 if activateP[x*width + y] < activated:
-                    fundState = 1 if fundP[x*width + y] < 1-p_im else 2
+                    fundState = 1 if fundP[x*width + y] < (1-p_im) else 2
                     if fundState == 2:
                         cellState = 1 if choiceP[x*width + y] < 0.5 else -1
                     else:
-                        cellState = 1 if price - fundaPrice <= 0 else -1
+                        cellState = 1 if (price - fundaPrice) <= 0 else -1
                         
         elif abs(cellState) == 1:
             
@@ -167,6 +169,10 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, nextFundGrid
                     cellState = 1
                 else:
                     cellState = -1
+
+        #         if pk == -1.0:
+        #             fundState = 100
+
                     
         nextGrid[x,y] = cellState
         nextFundGrid[x,y] = fundState
@@ -190,9 +196,9 @@ bpg = 50
 tpb = 32
 
 nView = 3
-steps = 3
+steps = 300
 
-initialPrice = 100
+initialPrice = 500
 
 stream = cuda.stream() #initialize memory stream
 
@@ -234,9 +240,10 @@ for j in range(paths):
             dA = cuda.to_device(A, stream) #upldate grid
             dB = cuda.to_device(B, stream) #upload new locatoin
             dC = cuda.to_device(C, stream) #fundamentalist/immitators grid
-            dD = cuda.to_device(D, stream) #next state fundamendalists
+            
 
             dCluster = cuda.to_device(cluster, stream) #upload cluster grid to GPU
+            dD = cuda.to_device(D, stream) #next state fundamendalists
             dClusterSize = cuda.to_device(clusterSize, stream) #upload cluster size
             dnClustOnes  = cuda.to_device(nClustOnes, stream) #upload ones per cluster
 
@@ -258,18 +265,25 @@ for j in range(paths):
             dD.to_host(stream)
             
             
-        C = D.copy()
-        print "A"
-        print A
-        #set new grid as current grid and repeat
-        A = B.copy()
-        print np.where(C==1)[0].size, np.where(C==2)[0].size, np.where(np.absolute(B)==1)[0].size
-        print "States"
-        print C
-        print "B"
-        print B
-        # D = np.subtract(B,C)
-        # print D, np.where(D!=0)[0].size
+        if np.max(D) <= 2 and np.max(D) >= 0 and np.max(B) >= -1 and np.max(B) <= 1:
+            #whoops something went wrong throw away calculations
+            C = D.copy()
+            A = B.copy()
+
+            # if i % int(steps/nView) == 0:
+            #     cmap = mpl.colors.ListedColormap(['red','white','green'])
+            #     bounds=[-1.1,-.1,.1,1.1]
+            #     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+            #     im = plt.imshow(B.astype(int),interpolation='nearest', cmap = cmap,norm=norm)
+
+            #     plt.show()
+        
+            pricePath.append(prices)
+        else:
+            print "ERROR ABORT!!!!!"
+            print "MAX:  %s" % np.max(B)
+            print "MAX2: %s" % np.max(D)
 
         x, price = updatePrice(price, clusterSize, nClustOnes)
         prices.append(price)
@@ -280,16 +294,8 @@ for j in range(paths):
         LogReturns = np.append(LogReturns, np.log(prices[i]) - np.log(prices[i-1]) )
         nLogReturns = np.append(nLogReturns, (LogReturns[i] - np.mean(LogReturns))/np.std(LogReturns) )
 
-        if i % int(steps/nView) == 0:
-            cmap = mpl.colors.ListedColormap(['red','white','green'])
-            bounds=[-1.1,-.1,.1,1.1]
-            norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
-            im = plt.imshow(B.astype(int),interpolation='nearest', cmap = cmap,norm=norm)
-
-            plt.show()
-    
-        pricePath.append(prices)
+    print "LENGTHHHHHHH: %s" % len(pricePath)
         
     # make some plots
     print "fraction active traders"
@@ -297,14 +303,14 @@ for j in range(paths):
     plt.plot(activeTraders)
     plt.show()
     
-#    fig = plt.figure()
-#    ax = fig.add_subplot(111)
-#    hist, bin_edges = np.histogram(clusterSize, bins=20)
-#    print "cluster size distribution", hist
-#    ax.plot(hist)
-#    ax.set_xscale('log')
-#    ax.set_yscale('log')
-#    plt.show()
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    hist, bin_edges = np.histogram(clusterSize, bins=20)
+    print "cluster size distribution", hist
+    ax.plot(hist)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    plt.show()
     
     print "normalized log returns"
     plt.figure()
@@ -317,11 +323,11 @@ for j in range(paths):
     xmin, xmax = min(np.amin(nLogReturns),-7) , max(np.amax(nLogReturns), 7)
     x = np.linspace(xmin, xmax, 100)
     p1, = plt.plot(x,mlab.normpdf(x,mu,sigma), label='normal distribution')
-    
+
     hist, bin_edges = np.histogram(nLogReturns, bins=20, normed=True)
     bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
     p2 = plt.scatter(bin_means, hist, marker='o', label='model')
-    
+
 #    hist, bin_edges = np.histogram(sp500_nlogReturns, bins=20, normed=True)
 #    bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
 #    p3 = plt.scatter(bin_means, hist, marker='v', color='g', label='sp500')
@@ -360,9 +366,9 @@ for j in range(paths):
         
 
 
-plt.figure()
-for j in range(len(pricePath)):
-    plt.plot(pricePath[j])
-plt.show()
+# plt.figure()
+# for j in range(len(pricePath)):
+#     plt.plot(pricePath[j])
+# plt.show()
 
 #print np.matrix(B).max()
