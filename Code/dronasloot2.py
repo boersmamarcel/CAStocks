@@ -219,9 +219,11 @@ class CAmodel(object):
         self.v_clustering = self.v_clustering/self.v_clustering[0] # normalize to first entry
         
         plt.figure()
-        p1, = plt.plot(self.Price_correlation, label='price autocorrelation')
+        p1, = plt.plot(self.Price_correlation, label='price clustering')
         p2, = plt.plot(self.v_clustering, label='volatility clustering')
-        plt.legend(handles=[p1, p2], bbox_to_anchor=(1.05, 1), loc=2)
+        p3, = plt.plot(sp500_price_clustering, label='sp500 price clustering')
+        p4, = plt.plot(sp500_volatility_clustering, label='sp500 volatility clustering')
+        plt.legend(handles=[p1, p2, p3, p4], bbox_to_anchor=(1.05, 1), loc=2)
         plt.show()
         
         plt.figure()
@@ -241,13 +243,6 @@ path = "table.csv"
 print "reading data..."
 sp500 = pd.read_csv(path, sep=',')
 print "done"
-
-# compute returns S&P 500 
-sp500_logReturns = (np.log(sp500[['Close']].as_matrix()) - np.log(sp500[['Open']].as_matrix())).flatten()
-sp500_nlogReturns = np.array([])
-for i in range(1, sp500_logReturns.size):
-    val = (sp500_logReturns[i] - np.mean(sp500_logReturns[:i+1]))/np.std(sp500_logReturns[:i+1])
-    sp500_nlogReturns = np.append(sp500_nlogReturns, val)
 
 # model parameters     
 width = 25 # width
@@ -269,6 +264,35 @@ F = 100 # Fundamental price
 
 steps = 1000
 
+# compute returns S&P 500, price clustering and volatility clustering
+sp500_open = sp500[['Open']].as_matrix().flatten()
+sp500_close = sp500[['Close']].as_matrix().flatten()
+
+# normalized log returns for distribution analysis
+sp500_logReturns = np.log(sp500_close) - np.log(sp500_open)
+sp500_nlogReturns = np.array([])
+for i in range(1, sp500_logReturns.size):
+    val = (sp500_logReturns[i] - np.mean(sp500_logReturns[:i+1]))/np.std(sp500_logReturns[:i+1])
+    sp500_nlogReturns = np.append(sp500_nlogReturns, val)
+
+# price and volatility clustering
+sp500_price_change = np.divide((sp500_close[:-1] - sp500_open[1:]),sp500_open[1:])
+sp500_volatility = np.array([])
+for i in range(1,sp500_open.size): # compute volatility
+    ki = k if k < i else i
+    price_avg = np.mean(sp500_open[i-ki:i+1])
+    value = np.sum(np.absolute(sp500_open[i-ki:i+1] - price_avg))/(1.0*ki*price_avg)
+    sp500_volatility = np.append(sp500_volatility, value)
+
+sp500_price_clustering = np.array([])
+sp500_volatility_clustering = np.array([])
+for lag in range(1,500): # array of correlation with certain lags
+    sp500_price_clustering = np.append(sp500_price_clustering,  np.sum(np.multiply(sp500_price_change[lag:],sp500_price_change[:-lag])))
+    sp500_volatility_clustering = np.append(sp500_volatility_clustering,  np.sum(np.multiply(sp500_volatility[lag:],sp500_volatility[:-lag])))
+sp500_price_clustering = sp500_price_clustering/sp500_price_clustering[0] # normalize to first entry
+sp500_volatility_clustering = sp500_volatility_clustering/sp500_volatility_clustering[0] # normalize to first entry
+
+# run model
 model = CAmodel(width, height, p_im, c_im, c_fu, c_p, c_l, k, L_m, initPrice, F, steps) 
 print "running model"    
 model.run()   
