@@ -196,6 +196,8 @@ class CAmodel(object):
         plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
         plt.yscale('log')
         plt.xlim([xmin,xmax])
+        plt.xlabel('normalized logreturn values [-]')
+        plt.ylabel('Probability [-]')
         plt.show()
         
         plt.clf()
@@ -224,6 +226,8 @@ class CAmodel(object):
         p3, = plt.plot(sp500_price_clustering, label='sp500 price clustering')
         p4, = plt.plot(sp500_volatility_clustering, label='sp500 volatility clustering')
         plt.legend(handles=[p1, p2, p3, p4], bbox_to_anchor=(1.05, 1), loc=2)
+        plt.xlabel('Lag [-]')
+        plt.ylabel('Correlation coeficient [-]')
         plt.show()
         
         plt.figure()

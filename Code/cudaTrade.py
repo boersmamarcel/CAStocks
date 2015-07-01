@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.mlab as mlab
 
+import pandas as pd
+
 # read in S&P 500 data set
 path = "table.csv"
 print "reading data..."
@@ -303,6 +305,8 @@ for j in range(paths):
     plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
     plt.yscale('log')
     plt.xlim([xmin, xmax])
+    plt.xlabel('normalized logreturn values [-]')
+    plt.ylabel('Probability [-]')
     plt.show()
     
     volatility = np.array([])
@@ -325,6 +329,8 @@ for j in range(paths):
     p3, = plt.plot(sp500_price_clustering, label='sp500 price clustering')
     p4, = plt.plot(sp500_volatility_clustering, label='sp500 volatility clustering')
     plt.legend(handles=[p1, p2, p3, p4], bbox_to_anchor=(1.05, 1), loc=2)
+    plt.xlabel('Lag [-]')
+    plt.ylabel('Correlation coeficient [-]')
     plt.show()    
     
 plt.figure()
