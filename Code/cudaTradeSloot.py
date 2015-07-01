@@ -15,16 +15,17 @@ import matplotlib.mlab as mlab
 
 cuda.select_device(0) #select videocard
 
-w = 20
-h = 20
+w = 5
+h = 5
 
-initProb = 0.05
-pim = 0.0 # probability of being an imitator
+initProb = 0.5
+pim = 0.5 # probability of being an imitator
 
 #generate random traders
 A = np.array(np.random.choice([0, 1], p=[1-initProb, initProb], size=w*h, replace=True).reshape(h,w), dtype=np.int32)
 B = np.empty_like(A)
 C = np.empty_like(B)
+D = np.empty_like(C)
 
 for i in range(h):
     for j in range(w):
@@ -89,8 +90,8 @@ def localPRule(k, fundState, price, funPrice, A, a, clusterSize, nClustOnes, xi,
         return 0
 
 
-@cuda.jit(argtypes=[f4, f4, int32[:,:], int32[:,:], int32[:,:], int32[:,:], f4[:], int32, f4[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f4], target='gpu')
-def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clusterSize, nClust, clusterOnes, enterP, activateP, choiceP, diffuseP, fundP, xis, eta, p_im):
+@cuda.jit(argtypes=[f4, f4, int32[:,:], int32[:,:], int32[:,:], int32[:,:], int32[:,:], f4[:], int32, f4[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f8[:], f4], target='gpu')
+def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, nextFundGrid, cluster, clusterSize, nClust, clusterOnes, enterP, activateP, choiceP, diffuseP, fundP, xis, eta, p_im):
     
     x,y = cuda.grid(2)
     gw,gh = currentGrid.shape
@@ -112,7 +113,7 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
         if cellState == 0:
             # this is the enter probability, where a person has a certain probability of entering the market
             enter = enterP[x*width + y] 
-
+            fundState = 0
 
             #activation probability
             if enter < pe: 
@@ -122,7 +123,6 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
                     cellState = 1 if choiceP[x*width + y] < 0.5 else -1
                 else:
                     cellState = 1 if price - fundaPrice <= 0 else -1
-                
 
             else:
                 #activate by neighbors
@@ -169,7 +169,7 @@ def stateUpdate(price, fundaPrice, currentGrid, nextGrid, fundGrid, cluster, clu
                     cellState = -1
                     
         nextGrid[x,y] = cellState
-        fundGrid[x,y] = fundState
+        nextFundGrid[x,y] = fundState
 
 def updatePrice(price, clusterSize, nClustOnes):
     # what is beta?????
@@ -234,6 +234,7 @@ for j in range(paths):
             dA = cuda.to_device(A, stream) #upldate grid
             dB = cuda.to_device(B, stream) #upload new locatoin
             dC = cuda.to_device(C, stream) #fundamentalist/immitators grid
+            dD = cuda.to_device(D, stream) #next state fundamendalists
 
             dCluster = cuda.to_device(cluster, stream) #upload cluster grid to GPU
             dClusterSize = cuda.to_device(clusterSize, stream) #upload cluster size
@@ -250,21 +251,25 @@ for j in range(paths):
             prng.uniform(xis)
             prng.uniform(eta)
 
-            stateUpdate[(bpg, bpg), (tpb, tpb), stream](price, fundPrice, dA, dB, dC, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, fundamentaListProbs, xis, eta, pim)
+            stateUpdate[(bpg, bpg), (tpb, tpb), stream](price, fundPrice, dA, dB, dC, dD, dCluster, dClusterSize, nClust, dnClustOnes, enterProbs, activateProbs, choiceProbs, diffuseProbs, fundamentaListProbs, xis, eta, pim)
 
             #get GPU memory results
             dB.to_host(stream)
-            dC.to_host(stream)
+            dD.to_host(stream)
             
             
-
+        C = D.copy()
+        print "A"
+        print A
         #set new grid as current grid and repeat
         A = B.copy()
         print np.where(C==1)[0].size, np.where(C==2)[0].size, np.where(np.absolute(B)==1)[0].size
+        print "States"
         print C
+        print "B"
         print B
-        D = np.subtract(B,C)
-        print D, np.where(D!=0)[0].size
+        # D = np.subtract(B,C)
+        # print D, np.where(D!=0)[0].size
 
         x, price = updatePrice(price, clusterSize, nClustOnes)
         prices.append(price)
