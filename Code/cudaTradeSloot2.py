@@ -313,8 +313,7 @@ for lag in range(1,500): # array of correlation with certain lags
     sp500_volatility_clustering = np.append(sp500_volatility_clustering,  np.sum(np.multiply(sp500_volatility[lag:],sp500_volatility[:-lag])))
 sp500_price_clustering = sp500_price_clustering/sp500_price_clustering[0] # normalize to first entry
 sp500_volatility_clustering = sp500_volatility_clustering/sp500_volatility_clustering[0] # normalize to first entry    
-            
-        
+          
 
 width = 50 # grid width
 height = 100 # grid height
@@ -323,7 +322,7 @@ nView = 5 # number of grid plots
 initProb = 0.05 # probability of active cell in initialization
 initPrice = 100.0 # initial price
 fundPrice = 100.0 # fundamental price
-p_im = 0.7 # probability of imitator type (2)
+p_im = 0.0 # probability of imitator type (2)
 pe = 0.0001 # enter probability
 pd = 0.05 # diffusion probability
 ph = 0.0485/1.5 # neighbour activation probability
