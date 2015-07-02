@@ -323,17 +323,17 @@ sp500_price_clustering = sp500_price_clustering/sp500_price_clustering[0] # norm
 sp500_volatility_clustering = sp500_volatility_clustering/sp500_volatility_clustering[0] # normalize to first entry    
           
 
-width = 50 # grid width
+width = 100 # grid width
 height = 100 # grid height
-steps = 9000 # number of steps
+steps = 3000 # number of steps
 nView = 5 # number of grid plots
 initProb = 0.55 # probability of active cell in initialization
 initPrice = 100.0 # initial price
 fundPrice = 100.0 # fundamental price
-p_im = 0.0 # probability of imitator type (2)
-pe = 0.0001 # enter probability
-pd = 0.05 # diffusion probability
-ph = 0.0485/1.5 # neighbour activation probability
+p_im = 1.0 # probability of imitator type (2)
+pe = 0 #0.0001 # enter probability
+pd = 0 #0.05 # diffusion probability
+ph = 0 #0.0485/1.5 # neighbour activation probability
 
 model = CAmodel(width, height, steps, nView, initProb, initPrice, fundPrice, p_im, pe, pd, ph)
 model.run()
