@@ -102,8 +102,13 @@ class CAmodel(object):
 
     def updatePrice(self):
         
-        beta = 1.0/(self.width*self.height)**2
-        x = beta*np.sum( np.multiply(self.clusterSize, self.clusterOnes-(self.clusterSize-self.clusterOnes) ) )
+#        beta = 1.0/(self.width*self.height)**2
+#        x = beta*np.sum( np.multiply(self.clusterSize, self.clusterOnes-(self.clusterSize-self.clusterOnes) ) )
+
+        # remove cluster weight test
+        beta = 1.0/(self.width*self.height)
+        x = beta*np.sum(self.clusterOnes-(self.clusterSize-self.clusterOnes))
+
 
         self.Price += x*self.Price # update price
         
@@ -263,9 +268,9 @@ class CAmodel(object):
         mu, sigma = np.mean(self.nlogReturn), np.std(self.nlogReturn)
         xmin, xmax = min(np.amin(self.nlogReturn),-7) , max(np.amax(self.nlogReturn), 7)
         x = np.linspace(xmin, xmax, 100)
-        p1, = plt.plot(x,mlab.normpdf(x,mu,sigma), label='normal distribution')
+        p1, = plt.plot(x,mlab.normpdf(x,0,1), label='normal distribution')
         
-        hist, bin_edges = np.histogram(self.nlogReturn, bins=20, normed=True)
+        hist, bin_edges = np.histogram(self.nlogReturn/sigma - mu, bins=20, normed=True)
         bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
         p2 = plt.scatter(bin_means, hist, marker='o', label='model')
         
@@ -296,6 +301,9 @@ sp500_nlogReturns = np.array([])
 for i in range(1, sp500_logReturns.size):
     val = (sp500_logReturns[i] - np.mean(sp500_logReturns[:i+1]))/np.std(sp500_logReturns[:i+1])
     sp500_nlogReturns = np.append(sp500_nlogReturns, val)
+    
+mu, sigma = np.mean(sp500_nlogReturns), np.std(sp500_nlogReturns)
+sp500_nlogReturns = sp500_nlogReturns/sigma - mu
 
 # price and volatility clustering
 sp500_price_change = np.divide((sp500_close[:-1] - sp500_open[1:]),sp500_open[1:])
@@ -319,10 +327,10 @@ width = 50 # grid width
 height = 100 # grid height
 steps = 9000 # number of steps
 nView = 5 # number of grid plots
-initProb = 0.05 # probability of active cell in initialization
+initProb = 0.55 # probability of active cell in initialization
 initPrice = 100.0 # initial price
 fundPrice = 100.0 # fundamental price
-p_im = 0.0 # probability of imitator type (2)
+p_im = 1.0 # probability of imitator type (2)
 pe = 0.0001 # enter probability
 pd = 0.05 # diffusion probability
 ph = 0.0485/1.5 # neighbour activation probability

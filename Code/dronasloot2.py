@@ -183,9 +183,9 @@ class CAmodel(object):
         mu, sigma = np.mean(self.nlogReturn), np.std(self.nlogReturn)
         xmin, xmax = min(np.amin(self.nlogReturn),-7) , max(np.amax(self.nlogReturn), 7)
         x = np.linspace(xmin, xmax, 100)
-        p1, = plt.plot(x,mlab.normpdf(x,mu,sigma), label='normal distribution')
+        p1, = plt.plot(x,mlab.normpdf(x,0,1), label='normal distribution')
         
-        hist, bin_edges = np.histogram(self.nlogReturn, bins=20, normed=True)
+        hist, bin_edges = np.histogram(self.nlogReturn/sigma - mu, bins=20, normed=True)
         bin_means = [0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(hist))]
         p2 = plt.scatter(bin_means, hist, marker='o', label='model')
         
@@ -195,7 +195,7 @@ class CAmodel(object):
         
         plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
         plt.yscale('log')
-        plt.xlim([xmin,xmax])
+        plt.xlim([-20,20])
         plt.xlabel('normalized logreturn values [-]')
         plt.ylabel('Probability [-]')
         plt.show()
@@ -249,8 +249,8 @@ sp500 = pd.read_csv(path, sep=',')
 print "done"
 
 # model parameters     
-width = 100 # width
-height = 100 # height
+width = 50 # width
+height = 50 # height
 
 p_im = 0.7 # probability that imitator
 
@@ -266,7 +266,7 @@ L_m = 0.01
 initPrice = 100 # initial price    
 F = 100 # Fundamental price  
 
-steps = 2000
+steps = 1000
 
 # compute returns S&P 500, price clustering and volatility clustering
 sp500_open = sp500[['Open']].as_matrix().flatten()
@@ -278,6 +278,9 @@ sp500_nlogReturns = np.array([])
 for i in range(1, sp500_logReturns.size):
     val = (sp500_logReturns[i] - np.mean(sp500_logReturns[:i+1]))/np.std(sp500_logReturns[:i+1])
     sp500_nlogReturns = np.append(sp500_nlogReturns, val)
+    
+mu, sigma = np.mean(sp500_nlogReturns), np.std(sp500_nlogReturns)
+sp500_nlogReturns = sp500_nlogReturns/sigma - mu
 
 # price and volatility clustering
 sp500_price_change = np.divide((sp500_close[:-1] - sp500_open[1:]),sp500_open[1:])
