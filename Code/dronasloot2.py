@@ -249,8 +249,8 @@ sp500 = pd.read_csv(path, sep=',')
 print "done"
 
 # model parameters     
-width = 25 # width
-height = 25 # height
+width = 100 # width
+height = 100 # height
 
 p_im = 0.7 # probability that imitator
 
@@ -266,7 +266,7 @@ L_m = 0.01
 initPrice = 100 # initial price    
 F = 100 # Fundamental price  
 
-steps = 1000
+steps = 2000
 
 # compute returns S&P 500, price clustering and volatility clustering
 sp500_open = sp500[['Open']].as_matrix().flatten()

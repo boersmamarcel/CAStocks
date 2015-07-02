@@ -245,7 +245,9 @@ for j in range(paths):
 
 
         #set new grid as current grid and repeat
+#        print np.max(A)
         A = B.copy()
+#        print np.max(A)
 
         x, price = updatePrice(price, clusterSize, nClustOnes)
         prices.append(price)
@@ -266,7 +268,10 @@ for j in range(paths):
              plt.show()
     
         pricePath.append(prices)
-        
+    
+    print 'Amax', np.max(A)
+
+
     # make some plots
     print "fraction active traders"
     plt.figure()
