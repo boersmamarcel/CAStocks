@@ -102,12 +102,12 @@ class CAmodel(object):
 
     def updatePrice(self):
         
-#        beta = 1.0/(self.width*self.height)**2
-#        x = beta*np.sum( np.multiply(self.clusterSize, self.clusterOnes-(self.clusterSize-self.clusterOnes) ) )
+        beta = 1.0/(self.width*self.height)**2
+        x = beta*np.sum( np.multiply(self.clusterSize, self.clusterOnes-(self.clusterSize-self.clusterOnes) ) )
 
         # remove cluster weight test
-        beta = 1.0/(self.width*self.height)
-        x = beta*np.sum(self.clusterOnes-(self.clusterSize-self.clusterOnes))
+#        beta = 1.0/(self.width*self.height)
+#        x = beta*np.sum(self.clusterOnes-(self.clusterSize-self.clusterOnes))
 
 
         self.Price += x*self.Price # update price
@@ -280,7 +280,7 @@ class CAmodel(object):
         
         plt.legend(handles=[p1, p2, p3], bbox_to_anchor=(1.05, 1), loc=2)
         plt.yscale('log')
-        plt.xlim([xmin, xmax])
+        plt.xlim([-7, 7])
         plt.xlabel('normalized logreturn values [-]')
         plt.ylabel('Probability [-]')
         plt.show()
@@ -330,7 +330,7 @@ nView = 5 # number of grid plots
 initProb = 0.55 # probability of active cell in initialization
 initPrice = 100.0 # initial price
 fundPrice = 100.0 # fundamental price
-p_im = 1.0 # probability of imitator type (2)
+p_im = 0.0 # probability of imitator type (2)
 pe = 0.0001 # enter probability
 pd = 0.05 # diffusion probability
 ph = 0.0485/1.5 # neighbour activation probability
